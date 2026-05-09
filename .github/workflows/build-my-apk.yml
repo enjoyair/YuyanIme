@@ -1,7 +1,10 @@
-name: 自动编译 Android APK (外科手术级纯净版)
+name: 自动编译 Android APK (外科手术容错版)
 
 on:
   workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -9,14 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出源代码 (包含子模块，浅克隆加速)
       - name: 检出源代码
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: 1
 
-      # 2. 配置 Java 运行环境并开启 Gradle 缓存
       - name: 设置 JDK 17
         uses: actions/setup-java@v4
         with:
@@ -24,39 +25,43 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      # 3. 赋予 Gradle Wrapper 执行权限 (自适应未来版本)
       - name: 赋予 Gradle Wrapper 执行权限
         run: chmod +x ./gradlew
 
-      # 4. 【核心手术 A】：物理销毁第三方闭源二进制库 (.so)
+      # 【核心手术 A】：物理销毁闭源二进制库
       - name: 物理销毁闭源二进制库
         run: |
-          find . -name "libSogouShell.so" -type f -delete
-          find . -name "libgpen_handwriter.so" -type f -delete
-          find . -name "libhandwriting.so" -type f -delete
-          find . -name "libhwInterface.so" -type f -delete
-          echo "✅ 闭源第三方库已彻底物理删除"
+          find . -name "libSogouShell.so" -type f -delete || true
+          find . -name "libgpen_handwriter.so" -type f -delete || true
+          find . -name "libhandwriting.so" -type f -delete || true
+          find . -name "libhwInterface.so" -type f -delete || true
+          echo "✅ 闭源第三方库销毁完毕"
 
-      # 5. 【核心手术 B】：切断 Java/Kotlin 层的加载指令，防止闪退
-      # 优化说明：修复了 find 命令多条件组合时的语法，确保同时搜索 .java 和 .kt 文件不出错
+      # 【核心手术 B】：切断代码加载链路
       - name: 切断代码加载链路
         run: |
-          find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("SogouShell")/\/\/ System.loadLibrary("SogouShell")/g' {} +
-          find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("handwriting")/\/\/ System.loadLibrary("handwriting")/g' {} +
-          find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("hwInterface")/\/\/ System.loadLibrary("hwInterface")/g' {} +
-          find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("gpen_handwriter")/\/\/ System.loadLibrary("gpen_handwriter")/g' {} +
-          echo "✅ Java/Kotlin 代码中的加载指令已全部安全注释"
+          find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("SogouShell")/\/\/ System.loadLibrary("SogouShell")/g' {} + || true
+          find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("handwriting")/\/\/ System.loadLibrary("handwriting")/g' {} + || true
+          find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("hwInterface")/\/\/ System.loadLibrary("hwInterface")/g' {} + || true
+          find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("gpen_handwriter")/\/\/ System.loadLibrary("gpen_handwriter")/g' {} + || true
+          echo "✅ Java/Kotlin 加载指令阻断完毕"
 
-      # 6. 【鲁棒性优化】兼容不同 Gradle 脚本的签名绕过
-      - name: 绕过私有签名限制 (自适应匹配)
+      # 【核心手术 C】：精准剥离导致崩溃的私有签名读取逻辑 (解决 path=null 报错)
+      - name: 剥离私有签名配置变量
         run: |
-          find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/signingConfigs\.release/signingConfigs\.debug/g' {} +
+          sed -i '/storeFile/d' app/build.gradle || true
+          sed -i '/storePassword/d' app/build.gradle || true
+          sed -i '/keyAlias/d' app/build.gradle || true
+          sed -i '/keyPassword/d' app/build.gradle || true
+          # 依然保留对配置类型的替换作为双重保险
+          find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/signingConfigs\.release/signingConfigs\.debug/g' {} + || true
+          echo "✅ 私有签名变量已彻底切除，规避 Gradle null 报错"
 
-      # 7. 使用本地 Wrapper 执行编译 (仅编译 Offline 版本，彻底剥离网络相关配置)
+      # 执行编译
       - name: 编译离线 Debug APK
         run: ./gradlew assembleOfflineDebug --stacktrace
 
-      # 8. 精准提取并上传纯净 APK 产物
+      # 提取并上传产物
       - name: 上传最终的纯净 APK 文件
         uses: actions/upload-artifact@v4
         with:
