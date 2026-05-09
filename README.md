@@ -8,7 +8,7 @@
 手机扫码下载地址：
 | Github                           | Gitee                          |
 |----------------------------------|--------------------------------|
-| ![github](./download/github.png) | ![gitee](./download/gitee.png) |
+| ![github](images/download/github.png) | ![gitee](images/download/gitee.png) |
 
 使用过程中任何问题可以创建issues、应用内反馈或通过邮件等方式反馈，本人会根据需求及时修复。
 ## 设计原则：
@@ -67,7 +67,19 @@ git clone git@github.com:gurecn/YuyanIme.git
 git submodule update --init --recursive
 ```
 ### 2. 导入Android Studio
-建议使用最新、稳定版本，本人使用`Android Studio Iguana | 2023.2.1 Patch 1`版本，按照常规项目导入即可，`Android Studio`会自动安装并配置 Android 开发环境。
+建议使用最新、稳定版本，本人使用`Android Studio Narwhal Feature Drop | 2025.1.2`版本，按照常规项目导入即可。
+`Android Studio`会自动安装并配置 Android 开发环境。
+
+### 3. 生成签名文件并配置
+进入项目路径，新建证书配置文件夹：`/YuyanIme/keystore`。`keystore`文件夹内放签名文件`*.jks`和配置文件`keystore.properties`。配置文件格式如下：
+```sh
+storeFile=keystore/*.jks
+storePassword=testPassword
+keyAlias=testalias
+keyPassword=testPassword
+```
+### 4.运行项目
+选择目标设备，编译执行项目。此时目标设备会自动安装并启动`语燕输入法`。
 
 ## 键盘预览：
 | 九宫键盘 | 全拼键盘 | 乱序17 |

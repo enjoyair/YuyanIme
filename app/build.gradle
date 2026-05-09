@@ -37,14 +37,21 @@ android {
 
     signingConfigs {
         release {
-            def keystoreFile = rootProject.file("keystore/keystore.properties")
-            if (keystoreFile.exists()) {
-                def keystoreProps = new Properties()
-                keystoreProps.load(new FileInputStream(keystoreFile))
-                storeFile file("${rootProject.projectDir}/keystore/" + keystoreProps["storeFile"])
-                storePassword keystoreProps["storePassword"]
-                keyAlias keystoreProps["keyAlias"]
-                keyPassword keystoreProps["keyPassword"]
+            def keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
+            def keystoreProperties = new Properties()
+            if (keystorePropertiesFile.exists()) {
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+            }
+            def keystoreFilePath = System.getenv("RELEASE_STORE_FILE") ?: keystoreProperties.getProperty('storeFile')
+            def keystorePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: keystoreProperties.getProperty('storePassword')
+            def keyAliasName = System.getenv("RELEASE_KEY_ALIAS") ?: keystoreProperties.getProperty('keyAlias')
+            def keyPasswordValue = System.getenv("RELEASE_KEY_PASSWORD") ?: keystoreProperties.getProperty('keyPassword')
+            def keystoreFile = rootProject.file(keystoreFilePath)
+            if (keystoreFile.exists() && keystorePassword && keyAliasName && keyPasswordValue) {
+                storeFile keystoreFile
+                storePassword keystorePassword
+                keyAlias keyAliasName
+                keyPassword keyPasswordValue
                 v1SigningEnabled true
                 v2SigningEnabled true
             }
@@ -54,10 +61,6 @@ android {
     //多渠道打包
     flavorDimensions = ["default"]
     productFlavors {
-        online {
-            dimension "default"
-            applicationIdSuffix  ".online"
-        }
         offline {
             dimension "default"
             applicationIdSuffix  ".offline"
@@ -87,7 +90,7 @@ android {
     }
     android.applicationVariants.configureEach { variant ->
         variant.outputs.configureEach {
-            outputFileName = "yuyanIme_${versionCodeDate()}_${variant.getProductFlavors()[0].name}_${variant.buildType.name}.apk"   // offline      online
+            outputFileName = "yuyanIme_${versionCodeDate()}_${variant.buildType.name}.apk"
         }
     }
 }
