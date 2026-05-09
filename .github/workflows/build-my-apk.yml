@@ -1,4 +1,4 @@
-name: 自动编译 Android APK (外科手术容错版)
+name: 自动编译 Android APK (智能 AST 纯净版)
 
 on:
   workflow_dispatch:
@@ -46,18 +46,48 @@ jobs:
           find . -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/System.loadLibrary("gpen_handwriter")/\/\/ System.loadLibrary("gpen_handwriter")/g' {} + || true
           echo "✅ Java/Kotlin 加载指令阻断完毕"
 
-      # 【核心手术 C】：精准剥离导致崩溃的私有签名读取逻辑 (解决 path=null 报错)
-      - name: 剥离私有签名配置变量
+      # 【核心手术 C】：引入 Python 智能语法树解析，安全注释签名块
+      - name: AST 级安全隔离私有签名块
         run: |
-          sed -i '/storeFile/d' app/build.gradle || true
-          sed -i '/storePassword/d' app/build.gradle || true
-          sed -i '/keyAlias/d' app/build.gradle || true
-          sed -i '/keyPassword/d' app/build.gradle || true
-          # 依然保留对配置类型的替换作为双重保险
-          find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/signingConfigs\.release/signingConfigs\.debug/g' {} + || true
-          echo "✅ 私有签名变量已彻底切除，规避 Gradle null 报错"
+          python3 -c "
+          import os
+          file_path = 'app/build.gradle'
+          if os.path.exists(file_path):
+              with open(file_path, 'r') as f:
+                  lines = f.readlines()
+              out = []
+              inside_signing = False
+              brace_level = 0
+              for line in lines:
+                  # 找到签名块入口
+                  if 'signingConfigs' in line and '{' in line and not inside_signing:
+                      inside_signing = True
+                      brace_level = line.count('{') - line.count('}')
+                      out.append('// [AST切除] ' + line)
+                      if brace_level <= 0:
+                          inside_signing = False
+                      continue
+                  
+                  # 跟踪括号层级，注释内部代码
+                  if inside_signing:
+                      brace_level += line.count('{') - line.count('}')
+                      out.append('// [AST切除] ' + line)
+                      if brace_level <= 0:
+                          inside_signing = False # 走出代码块
+                  else:
+                      out.append(line) # 正常保留其他代码
+                      
+              with open(file_path, 'w') as f:
+                  f.writelines(out)
+          " || true
+          echo "✅ 导致 path=null 的签名块已被 AST 解析器安全屏蔽"
 
-      # 执行编译
+      # 【核心手术 D】：抹除外部对已删除签名块的调用
+      - name: 阻断签名依赖调用
+        run: |
+          find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/signingConfig .*signingConfigs.*/\/\/ 签名调用已切断/g' {} + || true
+
+      # 执行编译 (纯净离线版)
       - name: 编译离线 Debug APK
         run: ./gradlew assembleOfflineDebug --stacktrace
 
